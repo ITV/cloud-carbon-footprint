@@ -26,6 +26,7 @@ export const SSD_USAGE_TYPES: string[] = [
   'VolumeUsage.io2', // EBS
   'VolumeUsage.gp3', // EBS
   'VolumeUsage.piops', // EBS
+  'WarmStorage-ByteHrs-EFS',//EFS
   'GP2-Storage', // RDS
   'PIOPS-Storage', // RDS
   'Aurora:StorageUsage', // RDS Aurora Storage
