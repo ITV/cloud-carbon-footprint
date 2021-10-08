@@ -28,7 +28,7 @@ import {
   athenaMockGetQueryResultsWithEC2EBSLambda,
   athenaMockGetQueryResultsWithNetworkingGlueECSDynamoDB,
   athenaMockGetQueryResultsWithS3CloudWatchRDS,
-  athenaMockGetQueryResultsWithKenesisESAndEc2Spot,
+  athenaMockGetQueryResultsWithKinesisESAndEc2Spot,
   athenaMockGetQueryResultsWithECSEksKafkaAndUnknownServices,
   athenaMockGetQueryResultsWithDocDBComputeEbsOptimizedSpotUsage,
   athenaMockGetQueryResultsWithRedshiftStorageComputeSavingsPlan,
@@ -38,9 +38,10 @@ import {
   athenaMockGetQueryResultsEC2EFSRDSWithReplicationFactors,
   athenaMockGetQueryResultsDatabasesWithReplicationFactors,
   athenaMockGetQueryResultsWithReclassifiedUnknowns,
+  athenaMockGetQueryH1ApiFsxBackupDirectConnectDirectoryService,
 } from './fixtures/athena.fixtures'
 import { AWS_CLOUD_CONSTANTS } from '../domain'
-import { UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING } from '../lib/CostAndUsageTypes'
+import {} from '../lib/CostAndUsageTypes'
 
 jest.mock('@cloud-carbon-footprint/common', () => ({
   ...(jest.requireActual('@cloud-carbon-footprint/common') as Record<
@@ -125,7 +126,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -262,7 +263,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -345,7 +346,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -402,7 +403,7 @@ describe('CostAndUsageReports Service', () => {
     // given
     mockStartQueryExecution(startQueryExecutionResponse)
     mockGetQueryExecution(getQueryExecutionResponse)
-    mockGetQueryResults(athenaMockGetQueryResultsWithKenesisESAndEc2Spot)
+    mockGetQueryResults(athenaMockGetQueryResultsWithKinesisESAndEc2Spot)
 
     // when
     const athenaService = new CostAndUsageReports(
@@ -411,7 +412,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -479,7 +480,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -586,7 +587,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -682,7 +683,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -754,7 +755,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     const result = await athenaService.getEstimates(startDate, endDate)
@@ -802,7 +803,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
 
@@ -851,7 +852,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
 
@@ -971,7 +972,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
 
@@ -1077,7 +1078,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
 
@@ -1170,7 +1171,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
 
@@ -1258,19 +1259,109 @@ describe('CostAndUsageReports Service', () => {
           },
         ],
       },
+    ]
+    expect(result).toEqual(expectedResult)
+  })
+
+  it('estimation for H1 instances, Api Gateway, Fsx, Kinesis, Backup, DirectConnect and DirectoryService', async () => {
+    mockStartQueryExecution(startQueryExecutionResponse)
+    mockGetQueryExecution(getQueryExecutionResponse)
+    mockGetQueryResults(
+      athenaMockGetQueryH1ApiFsxBackupDirectConnectDirectoryService,
+    )
+
+    const athenaService = new CostAndUsageReports(
+      new ComputeEstimator(),
+      new StorageEstimator(AWS_CLOUD_CONSTANTS.SSDCOEFFICIENT),
+      new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
+      new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
+      new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
+      new UnknownEstimator(),
+      getServiceWrapper(),
+    )
+
+    const result = await athenaService.getEstimates(startDate, endDate)
+
+    const expectedResult: EstimationResult[] = [
       {
-        timestamp: new Date('2021-01-04'),
+        timestamp: new Date('2021-01-01'),
         serviceEstimates: [
           {
             accountId: testAccountId,
             accountName: testAccountName,
             cloudProvider: 'AWS',
-            co2e: 0.020961630125351752,
-            cost: 30584.37244,
-            region: 'us-east-2',
-            serviceName: 'AWSDeveloperSupport',
+            co2e: 0.015339830814400001,
+            cost: 10,
+            region: 'eu-west-1',
+            serviceName: 'AmazonEC2',
+            usesAverageCPUConstant: true,
+            kilowattHours: 48.543768400000005,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 0.0000640423296,
+            cost: 1000,
+            region: 'eu-west-1',
+            serviceName: 'AmazonFSx',
             usesAverageCPUConstant: false,
-            kilowattHours: 47.61983003894198,
+            kilowattHours: 0.2026656,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 7.828784873709081e-17,
+            cost: 10,
+            region: 'eu-west-1',
+            serviceName: 'AmazonKinesis',
+            usesAverageCPUConstant: false,
+            kilowattHours: 2.4774635676294563e-13,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 8.48118361318484e-17,
+            cost: 20,
+            region: 'eu-west-1',
+            serviceName: 'AWSBackup',
+            usesAverageCPUConstant: false,
+            kilowattHours: 2.6839188649319115e-13,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 0.015339830814400001,
+            cost: 10,
+            region: 'eu-west-1',
+            serviceName: 'AmazonApiGateway',
+            usesAverageCPUConstant: true,
+            kilowattHours: 48.543768400000005,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 0.015339830814400001,
+            cost: 10,
+            region: 'eu-west-1',
+            serviceName: 'AWSDirectConnect',
+            usesAverageCPUConstant: true,
+            kilowattHours: 48.543768400000005,
+          },
+          {
+            accountId: testAccountId,
+            accountName: testAccountName,
+            cloudProvider: 'AWS',
+            co2e: 0.015339830814400001,
+            cost: 10,
+            region: 'eu-west-1',
+            serviceName: 'AWSDirectoryService',
+            usesAverageCPUConstant: true,
+            kilowattHours: 48.543768400000005,
           },
         ],
       },
@@ -1287,7 +1378,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     await expect(() =>
@@ -1305,7 +1396,7 @@ describe('CostAndUsageReports Service', () => {
       new StorageEstimator(AWS_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new NetworkingEstimator(AWS_CLOUD_CONSTANTS.NETWORKING_COEFFICIENT),
       new MemoryEstimator(AWS_CLOUD_CONSTANTS.MEMORY_COEFFICIENT),
-      new UnknownEstimator(UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING),
+      new UnknownEstimator(),
       getServiceWrapper(),
     )
     await expect(() =>

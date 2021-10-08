@@ -5,10 +5,6 @@
 import { makeStyles } from '@material-ui/core'
 
 const useStyles = makeStyles(() => ({
-  root: {
-    width: '100%',
-    height: '100%',
-  },
   title: {
     margin: '0',
     fontSize: '24px',
@@ -26,7 +22,6 @@ const useStyles = makeStyles(() => ({
     marginBottom: '24px',
   },
   map: {
-    width: '100%',
     maxHeight: 700,
   },
 }))

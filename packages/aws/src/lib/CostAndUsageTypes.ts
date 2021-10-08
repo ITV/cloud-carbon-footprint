@@ -19,6 +19,8 @@ export const SSD_SERVICES: string[] = [
   'AmazonECS',
   'AmazonLightsail',
   'AmazonNeptune',
+  'AmazonFSx',
+  'AmazonKinesis',
 ]
 
 export const SSD_USAGE_TYPES: string[] = [
@@ -43,6 +45,8 @@ export const SSD_USAGE_TYPES: string[] = [
   'ra3.xlplus', // Redshift SSD
   'ra3.4xlarge', // Redshift SSD
   'ra3.16xlarge', // Redshift SSD
+  'Storage.SSD.50', // Fsx
+  'Storage.MultiAZ:SSD', // Fsx
 ]
 
 export const HDD_USAGE_TYPES: string[] = [
@@ -89,6 +93,9 @@ export const HDD_USAGE_TYPES: string[] = [
   'BytesDeleted-GDA', // S3 GLACIER DEEP ARCHIVE storage
   'OverwriteBytes-Put-GLACIER', // S3 GLACIER storage
   'OverwriteBytes-Put-RRS', // S3 Reduced Redundancy storage
+  'BackupUsage.MultiAZ', // Fsx
+  'ColdStorage-ByteHrs-EFS', // AWSBackup
+  'WarmStorage-ByteHrs-EFS', //AWSBackup
 ]
 
 export const NETWORKING_USAGE_TYPES: string[] = [
@@ -115,6 +122,7 @@ export const BYTE_HOURS_USAGE_TYPES: string[] = [
   'EarlyDelete-SIA',
   'EarlyDelete-ZIA',
   'GlacierByteHrs',
+  'ByteHrs-EFS',
 ]
 
 export const UNKNOWN_USAGE_TYPES: string[] = [
@@ -144,11 +152,23 @@ export const UNKNOWN_USAGE_TYPES: string[] = [
   'FastSnapshotRestore',
   'GMD-Metrics',
   'Dollar',
+  'Airflow-SmallEnvironment',
+  'MemoryStore-ByteHrs',
+  'Output-SD-Hours',
+  'Output-HD-Hours',
+  'Output-FullHD-Hours',
+  'Input-Standard-Hours',
+  'Airflow-SmallWorker',
+  'AppRunner-Provisioned-GB-hours',
+  'ApiGatewayCacheUsage',
+  'PortUsage',
+  'SharedMsftAD-Usage',
 ]
 
 export const UNSUPPORTED_USAGE_TYPES: string[] = [
   'ECS-EC2-GB-Hours', // "Double counted" with EC2 usage rows, so ignore.
   'ECS-EC2-vCPU-Hours', // "Double counted" with EC2 usage rows, so ignore.
+  'Dollar', // AWSDeveloperSupport - no energy associated with support cost
 ]
 
 export const UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING: {
@@ -158,7 +178,6 @@ export const UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING: {
   Metrics: [EstimateClassification.STORAGE],
   'GB-Hours': [EstimateClassification.STORAGE],
   GB: [EstimateClassification.NETWORKING],
-  Dollar: [EstimateClassification.UNKNOWN],
   IOs: [EstimateClassification.COMPUTE],
   ShardHour: [EstimateClassification.COMPUTE],
   'LCU-Hrs': [EstimateClassification.COMPUTE],
@@ -187,13 +206,13 @@ export const UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING: {
   PutRequest: [EstimateClassification.UNKNOWN],
   HostedZone: [EstimateClassification.UNKNOWN],
   User: [EstimateClassification.UNKNOWN],
-  'UsageRecord-month': [EstimateClassification.UNKNOWN],
+  'UsageRecord-month': [EstimateClassification.STORAGE],
   Activities: [EstimateClassification.UNKNOWN],
   StateTransitions: [EstimateClassification.UNKNOWN],
   ConfigRuleEvaluations: [EstimateClassification.UNKNOWN],
   '64K-Chunks': [EstimateClassification.UNKNOWN],
-  Notifications: [EstimateClassification.UNKNOWN],
-  Alarms: [EstimateClassification.UNKNOWN],
+  Notifications: [EstimateClassification.NETWORKING],
+  Alarms: [EstimateClassification.COMPUTE],
   URL: [EstimateClassification.UNKNOWN],
   'GB-Mo': [EstimateClassification.STORAGE],
   GigaBytes: [EstimateClassification.NETWORKING],
@@ -211,7 +230,7 @@ export const LINE_ITEM_TYPES: string[] = [
   'SavingsPlanCoveredUsage',
 ]
 
-export enum PRICING_UNITS {
+export enum KNOWN_USAGE_UNITS {
   HOURS_1 = 'Hrs',
   HOURS_2 = 'Hours',
   HOURS_3 = 'hours',

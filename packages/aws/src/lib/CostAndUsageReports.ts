@@ -20,6 +20,8 @@ import {
   convertGigabyteMonthsToTerabyteHours,
   endsWithAny,
   EstimationResult,
+  LookupTableInput,
+  LookupTableOutput,
   Logger,
   wait,
 } from '@cloud-carbon-footprint/common'
@@ -50,10 +52,11 @@ import {
   HDD_USAGE_TYPES,
   LINE_ITEM_TYPES,
   NETWORKING_USAGE_TYPES,
-  PRICING_UNITS,
+  KNOWN_USAGE_UNITS,
   SSD_SERVICES,
   SSD_USAGE_TYPES,
   UNKNOWN_USAGE_TYPES,
+  UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING,
 } from './CostAndUsageTypes'
 import CostAndUsageReportsRow from './CostAndUsageReportsRow'
 
@@ -78,7 +81,7 @@ export default class CostAndUsageReports {
     private readonly networkingEstimator: NetworkingEstimator,
     private readonly memoryEstimator: MemoryEstimator,
     private readonly unknownEstimator: UnknownEstimator,
-    private readonly serviceWrapper: ServiceWrapper,
+    private readonly serviceWrapper?: ServiceWrapper,
   ) {
     this.dataBaseName = configLoader().AWS.ATHENA_DB_NAME
     this.tableName = configLoader().AWS.ATHENA_DB_TABLE
@@ -98,19 +101,9 @@ export default class CostAndUsageReports {
         rowData.Data,
       )
 
-      if (this.usageTypeIsUnsupported(costAndUsageReportRow.usageType))
-        return []
-
-      if (
-        this.usageTypeIsUnknown(costAndUsageReportRow.usageType) ||
-        this.usageTypeisGpu(costAndUsageReportRow.usageType)
-      ) {
-        unknownRows.push(costAndUsageReportRow)
-        return []
-      }
-
-      const footprintEstimate = this.getEstimateByPricingUnit(
+      const footprintEstimate = this.getFootprintEstimateFromUsageRow(
         costAndUsageReportRow,
+        unknownRows,
       )
       if (footprintEstimate)
         appendOrAccumulateEstimatesByDay(
@@ -130,7 +123,98 @@ export default class CostAndUsageReports {
     return results
   }
 
-  private getEstimateByPricingUnit(
+  getEstimatesFromInputData(
+    inputData: LookupTableInput[],
+  ): LookupTableOutput[] {
+    const result: LookupTableOutput[] = []
+    const unknownRows: CostAndUsageReportsRow[] = []
+
+    inputData.map((inputDataRow: LookupTableInput) => {
+      const usageRowsHeader = {
+        Data: [
+          { VarCharValue: 'timestamp' },
+          { VarCharValue: 'accountName' },
+          { VarCharValue: 'serviceName' },
+          { VarCharValue: 'region' },
+          { VarCharValue: 'usageType' },
+          { VarCharValue: 'usageUnit' },
+          { VarCharValue: 'vCpus' },
+          { VarCharValue: 'cost' },
+          { VarCharValue: 'usageAmount' },
+        ],
+      }
+      const usageRowData = [
+        { VarCharValue: '' },
+        { VarCharValue: '' },
+        { VarCharValue: inputDataRow.serviceName },
+        { VarCharValue: inputDataRow.region },
+        { VarCharValue: inputDataRow.usageType },
+        { VarCharValue: inputDataRow.usageUnit },
+        { VarCharValue: inputDataRow.vCpus },
+        { VarCharValue: '1' },
+        { VarCharValue: '1' },
+      ]
+      const costAndUsageReportRow = new CostAndUsageReportsRow(
+        usageRowsHeader,
+        usageRowData,
+      )
+
+      const footprintEstimate = this.getFootprintEstimateFromUsageRow(
+        costAndUsageReportRow,
+        unknownRows,
+      )
+
+      if (footprintEstimate) {
+        result.push({
+          serviceName: inputDataRow.serviceName,
+          region: inputDataRow.region,
+          usageType: inputDataRow.usageType,
+          usageUnit: inputDataRow.usageUnit,
+          vCpus: inputDataRow.vCpus,
+          kilowattHours: footprintEstimate.kilowattHours,
+          co2e: footprintEstimate.co2e,
+        })
+      }
+    })
+
+    if (result.length > 0) {
+      unknownRows.map((inputDataRow: CostAndUsageReportsRow) => {
+        const footprintEstimate = this.getEstimateForUnknownUsage(inputDataRow)
+        if (footprintEstimate)
+          result.push({
+            serviceName: inputDataRow.serviceName,
+            region: inputDataRow.region,
+            usageType: inputDataRow.usageType,
+            usageUnit: inputDataRow.usageUnit,
+            vCpus: inputDataRow.vCpus,
+            kilowattHours: footprintEstimate.kilowattHours,
+            co2e: footprintEstimate.co2e,
+          })
+      })
+    }
+
+    return result
+  }
+
+  private getFootprintEstimateFromUsageRow(
+    costAndUsageReportRow: CostAndUsageReportsRow,
+    unknownRows: CostAndUsageReportsRow[],
+  ): FootprintEstimate | void {
+    if (this.usageTypeIsUnsupported(costAndUsageReportRow.usageType)) return
+
+    if (
+      this.usageTypeIsUnknown(costAndUsageReportRow.usageType) ||
+      this.usageUnitIsUnknown(costAndUsageReportRow.usageUnit) ||
+      this.usageTypeisGpu(costAndUsageReportRow.usageType)
+    ) {
+      unknownRows.push(costAndUsageReportRow)
+      return
+    }
+
+    return this.getEstimateByUsageUnit(costAndUsageReportRow)
+  }
+
+  private getEstimateByUsageUnit(
     costAndUsageReportRow: CostAndUsageReportsRow,
   ): FootprintEstimate {
     const emissionsFactors: CloudConstantsEmissionsFactors =
@@ -139,12 +223,12 @@ export default class CostAndUsageReports {
       costAndUsageReportRow.region,
     )
     switch (costAndUsageReportRow.usageUnit) {
-      case PRICING_UNITS.HOURS_1:
-      case PRICING_UNITS.HOURS_2:
-      case PRICING_UNITS.HOURS_3:
-      case PRICING_UNITS.VCPU_HOURS:
-      case PRICING_UNITS.DPU_HOUR:
-      case PRICING_UNITS.ACU_HOUR:
+      case KNOWN_USAGE_UNITS.HOURS_1:
+      case KNOWN_USAGE_UNITS.HOURS_2:
+      case KNOWN_USAGE_UNITS.HOURS_3:
+      case KNOWN_USAGE_UNITS.VCPU_HOURS:
+      case KNOWN_USAGE_UNITS.DPU_HOUR:
+      case KNOWN_USAGE_UNITS.ACU_HOUR:
         // Compute / Memory
 
         const computeFootprint = new AWSComputeEstimatesBuilder(
@@ -161,6 +245,7 @@ export default class CostAndUsageReports {
           this.costAndUsageReportsLogger.warn(
             `Could not estimate compute usage for usage type: ${costAndUsageReportRow.usageType}`,
           )
+          return
         }
 
         // if there exist any memory footprint,
@@ -190,19 +275,19 @@ export default class CostAndUsageReports {
           )
 
         return computeFootprint
-      case PRICING_UNITS.GB_MONTH_1:
-      case PRICING_UNITS.GB_MONTH_2:
-      case PRICING_UNITS.GB_MONTH_3:
-      case PRICING_UNITS.GB_MONTH_4:
-      case PRICING_UNITS.GB_HOURS:
+      case KNOWN_USAGE_UNITS.GB_MONTH_1:
+      case KNOWN_USAGE_UNITS.GB_MONTH_2:
+      case KNOWN_USAGE_UNITS.GB_MONTH_3:
+      case KNOWN_USAGE_UNITS.GB_MONTH_4:
+      case KNOWN_USAGE_UNITS.GB_HOURS:
         // Storage
         return this.getStorageFootprintEstimate(
           costAndUsageReportRow,
           powerUsageEffectiveness,
           emissionsFactors,
         )
-      case PRICING_UNITS.SECONDS_1:
-      case PRICING_UNITS.SECONDS_2:
+      case KNOWN_USAGE_UNITS.SECONDS_1:
+      case KNOWN_USAGE_UNITS.SECONDS_2:
         // Lambda
         costAndUsageReportRow.vCpuHours =
           costAndUsageReportRow.usageAmount / 3600
@@ -210,8 +295,8 @@ export default class CostAndUsageReports {
           costAndUsageReportRow,
           this.computeEstimator,
         ).computeFootprint
-      case PRICING_UNITS.GB_1:
-      case PRICING_UNITS.GB_2:
+      case KNOWN_USAGE_UNITS.GB_1:
+      case KNOWN_USAGE_UNITS.GB_2:
         // Networking
         return this.getNetworkingFootprintEstimate(
           costAndUsageReportRow,
@@ -232,6 +317,7 @@ export default class CostAndUsageReports {
       timestamp: rowData.timestamp,
       cost: rowData.cost,
       usageUnit: rowData.usageUnit,
+      reclassificationType: this.getClassification(rowData.usageUnit),
     }
     const unknownConstants: CloudConstants = {
       co2ePerCost: AWS_CLOUD_CONSTANTS.CO2E_PER_COST,
@@ -242,6 +328,12 @@ export default class CostAndUsageReports {
       AWS_EMISSIONS_FACTORS_METRIC_TON_PER_KWH,
       unknownConstants,
     )[0]
+  }
+
+  private getClassification(usageUnit: string) {
+    return UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING[usageUnit]?.[0]
+      ? UNKNOWN_USAGE_TO_ASSUMED_USAGE_MAPPING[usageUnit][0]
+      : EstimateClassification.UNKNOWN
   }
 
   private getNetworkingFootprintEstimate(
@@ -313,7 +405,7 @@ export default class CostAndUsageReports {
       )[0]
     else
       this.costAndUsageReportsLogger.warn(
-        `Unexpected usage type for storage service: ${costAndUsageReportRow.usageType}`,
+        `Unexpected usage type for storage estimation. Usage type: ${costAndUsageReportRow.usageType}`,
       )
     if (estimate) {
       estimate.usesAverageCPUConstant = false
@@ -335,7 +427,7 @@ export default class CostAndUsageReports {
       return convertBytesToTerabytes(costAndUsageReportRow.usageAmount)
     }
     // Convert from GB-Hours to Terabyte Hours
-    if (costAndUsageReportRow.usageUnit === PRICING_UNITS.GB_HOURS) {
+    if (costAndUsageReportRow.usageUnit === KNOWN_USAGE_UNITS.GB_HOURS) {
       return convertGigabyteHoursToTerabyteHours(
         costAndUsageReportRow.usageAmount,
       )
@@ -390,6 +482,12 @@ export default class CostAndUsageReports {
     )
   }
 
+  private usageUnitIsUnknown(usageUnit: string): boolean {
+    return !Object.values(KNOWN_USAGE_UNITS).some(
+      (knownUsageUnit) => knownUsageUnit === usageUnit,
+    )
+  }
+
   private usageTypeisGpu(usageType: string): boolean {
     return containsAny(GPU_INSTANCES_TYPES, usageType)
   }
@@ -409,9 +507,6 @@ export default class CostAndUsageReports {
                     SUM(line_item_blended_cost) as cost
                     FROM ${this.tableName}
                     WHERE line_item_line_item_type IN ('${LINE_ITEM_TYPES.join(
-                      `', '`,
-                    )}')
-                    AND pricing_unit IN ('${Object.values(PRICING_UNITS).join(
                       `', '`,
                     )}')
                     AND line_item_usage_start_date >= DATE('${moment

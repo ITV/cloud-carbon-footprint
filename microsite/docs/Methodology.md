@@ -63,7 +63,7 @@ By default, we query cloud provider billing and usage APIs:
 
 This pulls usage and cost data from all linked accounts in your AWS, GCP, or Azure Organization. This approach provides us with a more holistic estimation of your cloud energy and carbon consumption, but may be less accurate as we use an average constant (rather than measured) CPU Utilization.
 
-Before estimating the energy and carbon emission, we validate whether a given usage is Compute, Storage, Networking, Memory or Unknown, with Unknown being unused in the estimation formula. You can see our classifications of these usage types in following files:
+Before estimating the energy and carbon emission, we validate whether a given usage is Compute, Storage, Networking, Memory or Unknown. You can see our classifications of these usage types in following files:
 
 - AWS: packages/aws/src/lib/CostAndUsageTypes.ts
 - GCP: packages/gcp/src/lib/BillingExportTypes.ts
@@ -72,7 +72,7 @@ Before estimating the energy and carbon emission, we validate whether a given us
 The process by which we classified the usage types is:
 
 1. Consider the pricing (AWS) or usage (GCP, Azure) unit: if it is hours or seconds, it is likely to be a Compute usage type. If it is byte-seconds or GigaByte-Months, it is likely to be Storage, and if it is bytes of Gigabytes it is likely to be networking. Most other units are ignored.
-2. We then further validate whether a line item is Compute, Storage, or Networking by looking at the more detailed usage type. E.g. if it contains content like “RAM”, it would be ignored.
+2. We then further validate whether a line item is Compute, Storage, Networking or Memory by looking at the more detailed usage type.
 
 You can see more details about this logic in following files:
 
@@ -159,24 +159,24 @@ queries an AWS Account.
 
 When we know what underlying processor micro-architecture or group of micro-architectures are used for a given cloud provider virtual machine, we use the min and max watts for that micro-architecture or the average of a group of micro-architectures. When a group of micro-architectures includes either Ivy Bridge or Sandy Bridge, we use the median of that group. This is because we treat those micro-architectures as outliers due to their comparatively high min/max watts in order to not overestimate. See Appendix II for this list of processors and micro-architectures with the min and max watts.
 
-When we don’t know the underlying processor micro-architecture, we use the average of all micro-architectures used by that cloud provider. Here are those averages per cloud provider:
+When we don’t know the underlying processor micro-architecture, we use the average or median of all micro-architectures used by that cloud provider. Here are those averages per cloud provider:
 
 **AWS:**
 
-- Min Watts: 0.71
-- Max Matts: 3.46
+- Average Min Watts: 0.74
+- Average Max Matts: 3.5
 
 **GCP:**
 
-- Min Watts: 1.34
-- Max Watts: 4.98
+- Median Min Watts: 0.71
+- Median Max Watts: 4.26
 
 **Azure:**
 
-- Min Watts: 0.77
-- Max Matts: 3.74
+- Average Min Watts: 0.78
+- Average Max Matts: 3.76
 
-#### A note on AWS Lambda Compute Estimates
+##### A note on AWS Lambda Compute Estimates
 
 In the case of AWS Lambda, AWS does not provide metrics for CPU Utilization and number of vCPU hours, so we need
 to take an alternative approach.
@@ -201,7 +201,7 @@ where:
 
 The execution time and memory allocated are both pulled from the Cost and Usage Reports or CloudWatch Lambda Logs.
 
-#### A note on AWS Aurora Serverless Compute Estimates
+##### A note on AWS Aurora Serverless Compute Estimates
 
 In the case of AWS Aurora Serverless using the Cost and Usage Reports, the pricing unit is `ACU-Hrs`. 1 ACU has
 approximately 2 GB of memory with corresponding CPU and networking, similar to what is used in Aurora user-provisioned
@@ -238,7 +238,7 @@ organization may have a 20 Gigabyte AWS EBS Volume allocated, but is only utiliz
 device. In this case we would use 20 GBs in the energy estimation formula for EBS storage.
 
 
-#### Storage Services Replication Factors
+##### Storage Services Replication Factors
 
 In order to achieve adequate durability and availability for data stores and to ensure better redundancy in the case 
 of service outages, most cloud provider storage and database services automatically replicate your data as well as any 
@@ -254,19 +254,19 @@ These replication factors are applied to the total energy and CO2e estimate for 
 
 #### Networking
 
-#### Scope
+##### Scope
 
 Currently, our application takes into account only the data exchanged between different geographical data centers.
 
 For networking, it is safe to assume that the electricity used to power the internal network is close to 0, or at least negligible compared to the electricity required to power servers. We also have chosen to ignore traffic that leaves a data center to provide end-users with services, because this traffic is usually handled by CDN providers (Content delivery network) which are not necessarily the same provider as for cloud computing. This traffic is also dependent on the behavior of end-users. That said, we would welcome contributions to be able to include this in our approach.
 
-#### Studies to date
+##### Studies to date
 
 There have not been many studies that deal specifically with estimating the electricity impact of exchanging data across data-centers. Most studies focus on estimating the impact of end-user traffic from the data center to the mobile phone; integrating the scope of the core network (what we are interested in), the local access to internet (optical fiber, copper, or 3G/4G/5G) and eventually the connection to the phone (WiFi or 4G).
 
 On top of that, these studies use different methodologies and end up with results with orders of magnitude in differences. See appendix III below for a summary of the most recent studies. Note that it is very hard to find recent studies that provide an estimation for optical fiber networks, the scope we are interested in.
 
-#### Chosen coefficient
+##### Chosen coefficient
 
 It is safe to assume hyper-scale cloud providers have a very energy efficient network between their data centers with their own optical fiber networks and submarine cable [source](https://aws.amazon.com/about-aws/global-infrastructure/). Data exchanges between data-centers are also done with a very high bitrate (~100 GbE -> 100 Gbps), thus being the most efficient use-case. Given these assumptions, we have decided to use the smallest coefficient available to date: **0.001 kWh/Gb**. Again, we welcome feedback or contributions to improve this coefficient.
 
@@ -274,7 +274,7 @@ We want to thank [@martin-laurent](https://github.com/martin-laurent) for provid
 
 #### Memory
 
-#### Chosen Coefficient
+##### Chosen Coefficient
 
 For the purpose of estimating energy consumption for memory, we are assuming hyper-scale cloud providers are utilizing
 the more efficient memory systems on the market: DDR4 or potentially DDR5. Two memory manufacturers have provided some information
@@ -285,7 +285,7 @@ provides a power model that states “... each DRAM will consume approximately 4
 power consumption of ~0.4083 W/GB. Given this information, we have decided to take the average of both these figures, 
 and go with 0.392 W/GB, or **0.000392 kWh/GB**. We want to acknowledge that this is a complex subject with limited available data, and welcome additional research or studies to improve this coefficient.
 
-#### Applying the coefficient
+##### Applying the coefficient
 
 When we utilize the SPECPower Database for estimating compute (above), this also includes some level of energy estimation 
 for memory, because the rows in that database represent the min and max watts for entire servers, which includes memory 
@@ -340,7 +340,7 @@ equivalent to the SPEC Power database rows.
 
 ### Power Usage Effectiveness
 
-After estimating the kilowatt hours for compute, storage and networking, we need to multiply this by the cloud provider Power Usage Effectiveness (PUE). PUE is a score of how energy efficient a data center is, with the lowest possible score of 1 meaning all energy consumed goes directly to powering the servers and none is being wasted on cooling. This is based on publicly available information provided by the cloud providers. In the case of GCP, they [publish their PUE](https://cloud.google.com/sustainability). In the case of AWS, we have made a conservative guess [based on public information](https://aws.amazon.com/blogs/aws/cloud-computing-server-utilization-the-environment/). Microsoft's Sustainability team have provided a statement<sup>1</sup> as to the PUE for the Azure datacenters.
+After estimating the kilowatt hours for compute, storage and networking, we need to multiply this by the cloud provider Power Usage Effectiveness (PUE). PUE is a score of how energy efficient a data center is, with the lowest possible score of 1 meaning all energy consumed goes directly to powering the servers and none is being wasted on cooling. This is based on publicly available information provided by the cloud providers. In the case of GCP, they [publish their PUE](https://www.google.com/about/datacenters/efficiency/). In the case of AWS, we have made a conservative guess [based on public information](https://aws.amazon.com/blogs/aws/cloud-computing-server-utilization-the-environment/). Microsoft's Sustainability team have provided a statement<sup>1</sup> as to the PUE for the Azure datacenters.
 
 Here are the cloud provider PUEs being used:
 
@@ -380,8 +380,8 @@ API](https://api.electricitymap.org/) provides hourly historical and forecasted 
 
 #### AWS
 
-- Average Minimum Watts (0% Cpu Utilization): 0.71
-- Average Maximum Watts (100% Cpu Utilization): 3.46
+- Average Minimum Watts (0% Cpu Utilization): 0.74
+- Average Maximum Watts (100% Cpu Utilization): 3.5
 - Average CPU Utilization for hyperscale data centers: 50%
 - HDD Storage Watt Hours / Terabyte: 0.65
 - SSD Storage Watt Hours / Terabyte: 1.2
@@ -391,8 +391,8 @@ API](https://api.electricitymap.org/) provides hourly historical and forecasted 
 
 #### GCP
 
-- Average Minimum Watts (0% Cpu Utilization): 1.34
-- Average Maximum Watts (100% Cpu Utilization): 4.98
+- Median Minimum Watts (0% Cpu Utilization): 0.71
+- Median Maximum Watts (100% Cpu Utilization): 4.26
 - Average CPU Utilization for hyperscale data centers: 50%
 - HDD Storage Watt Hours / Terabyte: 0.65
 - SSD Storage Watt Hours / Terabyte: 1.2
@@ -402,8 +402,8 @@ API](https://api.electricitymap.org/) provides hourly historical and forecasted 
 
 #### Azure
 
-- Average Minimum Watts (0% Cpu Utilization): 0.77
-- Average Maximum Watts (100% Cpu Utilization): 3.74
+- Average Minimum Watts (0% Cpu Utilization): 0.78
+- Average Maximum Watts (100% Cpu Utilization): 3.76
 - Average CPU Utilization for hyperscale data centers: 50%
 - HDD Storage Watt Hours / Terabyte: 0.65
 - SSD Storage Watt Hours / Terabyte: 1.2
@@ -500,7 +500,7 @@ The same is true for the GB / physical chip used to estimate energy for memory u
 
 **Note**: The application currently only supports a subset of Azure regions that are used by Thoughtworks.
 This is because the syntax in which they are returned from the Azure Consumption API doesn't always match what is listed in the [Azure website](https://azure.microsoft.com/en-us/global-infrastructure/geographies).
-For example, the website says "Central US", but the API provides the region as "US Central". In the case of "UK South",
+For example, the website says "West US 2", but the API provides the region as "uswest2". In the case of "UK South",
 it is the same on both the website and the API. For any Azure customers using other regions, we would love to know what
 syntax is returned by the API for your region(s) so that we can add support for them. You can email [green-cloud@thoughtworks.com](mailto:green-cloud@thoughtworks.com),
 or submit an issue or pull request.

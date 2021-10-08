@@ -3,12 +3,12 @@
  */
 
 import React, { Dispatch, SetStateAction } from 'react'
-import { DateRange, Filters } from '../../utils/Filters'
 import { render, RenderResult, act, fireEvent } from '@testing-library/react'
 import moment from 'moment'
 import MockDate from 'mockdate'
-
 import DateFilter from './DateFilter'
+import { FiltersDateRange, Filters } from 'common/FilterBar/utils/Filters'
+import { EmissionsFilters } from '../../utils/EmissionsFilters'
 
 describe('DatePicker', () => {
   let mockSetFilters: jest.Mock<Dispatch<SetStateAction<Filters>>>
@@ -18,7 +18,7 @@ describe('DatePicker', () => {
   beforeEach(() => {
     MockDate.set('2020-09-16T00:00:00Z')
     mockSetFilters = jest.fn()
-    filters = new Filters()
+    filters = new EmissionsFilters()
     page = render(<DateFilter filters={filters} setFilters={mockSetFilters} />)
   })
 
@@ -121,7 +121,7 @@ describe('DatePicker', () => {
   it('shows the selected start date when opening the dropdown via start date', () => {
     act(() => {
       const newFilters = filters.withDateRange(
-        new DateRange(
+        new FiltersDateRange(
           moment('2020-03-01T12:00:00Z'),
           moment('2020-09-01T12:00:00Z'),
         ),
@@ -149,7 +149,7 @@ describe('DatePicker', () => {
   it('shows the selected end date when opening the dropdown via end date', () => {
     act(() => {
       const newFilters = filters.withDateRange(
-        new DateRange(
+        new FiltersDateRange(
           moment('2020-03-01T12:00:00Z'),
           moment('2020-07-01T12:00:00Z'),
         ),

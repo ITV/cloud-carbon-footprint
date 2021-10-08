@@ -9,6 +9,7 @@ import Schema$InstanceAggregatedList = compute_v1.Schema$InstanceAggregatedList
 import Schema$Disk = compute_v1.Schema$Disk
 import Schema$DiskAggregatedList = compute_v1.Schema$DiskAggregatedList
 import Schema$AddressAggregatedList = compute_v1.Schema$AddressAggregatedList
+import Schema$Address = compute_v1.Schema$Address
 
 export type InstanceData = {
   data: Schema$Instance
@@ -24,6 +25,10 @@ type ImageDetails = {
 
 type DiskData = {
   data: Schema$Disk
+}
+
+type AddressDetails = {
+  data: Schema$Address
 }
 
 type InstanceAggregatedList = {
@@ -43,6 +48,9 @@ export const mockedInstanceResultItems: InstanceAggregatedList = {
     items: {
       'zones/us-west1-a': {
         instances: [{ id: 'test-instance' }],
+      },
+      'zones/us-east1-a': {
+        instances: [{ id: 'test-instance-1' }],
       },
       'zones/us-west1-b': { warning: { code: 'NO_RESULTS_ON_PAGE' } },
     },
@@ -81,6 +89,8 @@ export const mockedDisksGetSSDDetails: DiskData = {
   data: {
     sizeGb: '20',
     type: 'https://www.googleapis.com/compute/v1/projects/techops-events/zones/us-central1-b/diskTypes/pd-standard-ssd',
+    id: '12456789012',
+    name: 'test-resource-name',
   },
 }
 
@@ -88,6 +98,8 @@ export const mockedDisksGetHDDDetails: DiskData = {
   data: {
     sizeGb: '20',
     type: 'https://www.googleapis.com/compute/v1/projects/techops-events/zones/us-central1-b/diskTypes/pd-standard',
+    id: '12456789012',
+    name: 'test-resource-name',
   },
 }
 
@@ -96,6 +108,8 @@ export const mockedInstanceGetItems: InstanceData = {
     machineType:
       'https://www.googleapis.com/compute/v1/projects/test-project/zones/us-west1-b/machineTypes/n2-standard-32',
     disks: [],
+    id: '12456789012',
+    name: 'test-resource-name',
   },
 }
 
@@ -104,14 +118,8 @@ export const mockedInstanceGetItemsCurrent: InstanceData = {
     machineType:
       'https://www.googleapis.com/compute/v1/projects/test-project/zones/us-west1-b/machineTypes/e2-medium',
     disks: [],
-  },
-}
-
-export const mockedInstanceGetItemsNew: InstanceData = {
-  data: {
-    machineType:
-      'https://www.googleapis.com/compute/v1/projects/test-project/zones/us-west1-b/machineTypes/e2-small',
-    disks: [],
+    id: '12456789012',
+    name: 'test-resource-name',
   },
 }
 
@@ -126,6 +134,8 @@ export const mockedInstanceGetItemsWithHDDDisks: InstanceData = {
         diskSizeGb: '20',
       },
     ],
+    id: '12456789012',
+    name: 'test-instance-name',
   },
 }
 
@@ -145,6 +155,8 @@ export const mockedInstanceGetItemsWithBothDisks: InstanceData = {
         diskSizeGb: '20',
       },
     ],
+    id: '12456789012',
+    name: 'test-instance-name',
   },
 }
 
@@ -169,5 +181,15 @@ export const mockedMachineTypesGetItemsNew: MachineTypeData = {
 export const mockedImageGetDetails: ImageDetails = {
   data: {
     archiveSizeBytes: '580709696',
+    id: '12456789012',
+    name: 'test-resource-name',
+  },
+}
+
+export const mockedAddressGetDetails: AddressDetails = {
+  data: {
+    id: '123456789012345',
+    name: 'test-address',
+    address: '38.141.210.105',
   },
 }

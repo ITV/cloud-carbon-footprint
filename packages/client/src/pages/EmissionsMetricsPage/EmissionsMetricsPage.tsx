@@ -9,7 +9,8 @@ import { useRemoteService } from 'utils/hooks'
 import { useFilterDataFromEstimates } from 'utils/helpers'
 import { FilterResultResponse } from 'Types'
 import config from 'ConfigLoader'
-import useFilters from './EmissionsFilterBar/utils/FilterHook'
+import useFilters from 'common/FilterBar/utils/FilterHook'
+import LoadingMessage from 'common/LoadingMessage'
 import EmissionsFilterBar from './EmissionsFilterBar'
 import CarbonIntensityMap from './CarbonIntensityMap'
 import CarbonComparisonCard from './CarbonComparisonCard'
@@ -17,7 +18,8 @@ import EmissionsBreakdownCard from './EmissionsBreakdownCard'
 import EmissionsOverTimeCard from './EmissionsOverTimeCard'
 import useStyles from './emissionsMetricsStyles'
 import EmissionsSidePanel from './EmissionsSidePanel/EmissionsSidePanel'
-import LoadingMessage from '../../common/LoadingMessage'
+import { EmissionsFilters } from './EmissionsFilterBar/utils/EmissionsFilters'
+import { EstimationResult } from '@cloud-carbon-footprint/common'
 
 export default function EmissionsMetricsPage(): ReactElement {
   const classes = useStyles()
@@ -39,10 +41,17 @@ export default function EmissionsMetricsPage(): ReactElement {
   const filteredDataResults: FilterResultResponse =
     useFilterDataFromEstimates(data)
 
+  const buildFilters = (filteredResponse: FilterResultResponse) => {
+    const updatedConfig = EmissionsFilters.generateConfig(filteredResponse)
+    return new EmissionsFilters(updatedConfig)
+  }
+
   const { filteredData, filters, setFilters } = useFilters(
     data,
+    buildFilters,
     filteredDataResults,
   )
+  const filteredEstimationData = filteredData as EstimationResult[]
 
   if (loading) {
     return (
@@ -64,18 +73,12 @@ export default function EmissionsMetricsPage(): ReactElement {
         <Grid container spacing={3}>
           <EmissionsOverTimeCard
             classes={classes}
-            filteredData={filteredData}
+            filteredData={filteredEstimationData}
           />
           <Grid item xs={12}>
             <Grid container spacing={3} className={classes.gridCardRow}>
-              <CarbonComparisonCard
-                containerClass={classes.gridCardHalf}
-                data={filteredData}
-              />
-              <EmissionsBreakdownCard
-                containerClass={classes.gridCardHalf}
-                data={filteredData}
-              />
+              <CarbonComparisonCard data={filteredEstimationData} />
+              <EmissionsBreakdownCard data={filteredEstimationData} />
             </Grid>
           </Grid>
           <CarbonIntensityMap />

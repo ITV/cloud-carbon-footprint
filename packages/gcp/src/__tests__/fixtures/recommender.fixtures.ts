@@ -20,6 +20,18 @@ export const mockStopVMRecommendationsResults: IRecommendation[][] = [
         },
       },
       recommenderSubtype: 'STOP_VM',
+      content: {
+        operationGroups: [
+          {
+            operations: [
+              {
+                resource:
+                  '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+              },
+            ],
+          },
+        ],
+      },
     },
   ],
 ]
@@ -43,6 +55,18 @@ export const mockStopVMWithAdditionalImpactRecommendationsResults: IRecommendati
         ],
         primaryImpact: { category: 'PERFORMANCE' },
         recommenderSubtype: 'STOP_VM',
+        content: {
+          operationGroups: [
+            {
+              operations: [
+                {
+                  resource:
+                    '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
   ]
@@ -64,6 +88,18 @@ export const mockChangeMachineTypeRecommendationsResults: IRecommendation[][] =
           },
         },
         recommenderSubtype: 'CHANGE_MACHINE_TYPE',
+        content: {
+          operationGroups: [
+            {
+              operations: [
+                {
+                  resource:
+                    '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
   ]
@@ -83,6 +119,18 @@ export const mockDeleteDiskRecommendationsResults: IRecommendation[][] = [
         },
       },
       recommenderSubtype: 'DELETE_DISK',
+      content: {
+        operationGroups: [
+          {
+            operations: [
+              {
+                resource:
+                  '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+              },
+            ],
+          },
+        ],
+      },
     },
   ],
 ]
@@ -103,6 +151,18 @@ export const mockSnapshotAndDeleteDiskRecommendationsResults: IRecommendation[][
           },
         },
         recommenderSubtype: 'SNAPSHOT_AND_DELETE_DISK',
+        content: {
+          operationGroups: [
+            {
+              operations: [
+                {
+                  resource:
+                    '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
   ]
@@ -122,27 +182,66 @@ export const mockDeleteImageRecommendationsResults: IRecommendation[][] = [
         },
       },
       recommenderSubtype: 'DELETE_IMAGE',
+      content: {
+        operationGroups: [
+          {
+            operations: [
+              {
+                resource:
+                  '//compute.googleapis.com/projects/project-name/zones/us-west1-b/instances/instance-name',
+              },
+            ],
+          },
+        ],
+      },
     },
   ],
 ]
 
-export const mockDeleteAddressRecommendationsResults: IRecommendation[][] = [
-  [
-    {
-      name: 'project-name',
-      description: "Save cost by deleting idle address 'test-address'.",
-      primaryImpact: {
-        category: 'COST',
-        costProjection: {
-          cost: {
-            units: -40,
-            nanos: 0,
+const buildDeleteAddressRecommendation = (
+  zone = 'us-west1-b',
+): IRecommendation[][] => {
+  return [
+    [
+      {
+        name: 'project-name',
+        description: "Save cost by deleting idle address 'test-address'.",
+        primaryImpact: {
+          category: 'COST',
+          costProjection: {
+            cost: {
+              units: -40,
+              nanos: 0,
+            },
           },
         },
+        recommenderSubtype: 'DELETE_ADDRESS',
+        content: {
+          operationGroups: [
+            {
+              operations: [
+                {
+                  resource: `//compute.googleapis.com/projects/project-name/zones/${zone}/instances/instance-name`,
+                },
+              ],
+            },
+          ],
+        },
       },
-      recommenderSubtype: 'DELETE_ADDRESS',
-    },
-  ],
-]
+    ],
+  ]
+}
+
+export const mockDeleteAddressRecommendationsResults =
+  buildDeleteAddressRecommendation()
 
 export const mockEmptyRecommendationsResults: IRecommendation[][] = [[]]
+
+export const mockStopVmAndDeleteAddressRecommendations: IRecommendation[][] = [
+  mockStopVMRecommendationsResults
+    .concat(buildDeleteAddressRecommendation())
+    .flat(),
+]
+
+export const mockDeleteAddressRecommendationsEast: IRecommendation[][] =
+  buildDeleteAddressRecommendation('us-east1-a')

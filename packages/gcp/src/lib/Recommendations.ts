@@ -8,6 +8,7 @@ import { google } from '@google-cloud/recommender/build/protos/protos'
 import IRecommendation = google.cloud.recommender.v1.IRecommendation
 import IImpact = google.cloud.recommender.v1.IImpact
 import Schema$Instance = compute_v1.Schema$Instance
+import Schema$Disk = compute_v1.Schema$Disk
 import {
   COMPUTE_PROCESSOR_TYPES,
   ComputeEstimator,
@@ -30,9 +31,15 @@ import {
   INSTANCE_TYPE_COMPUTE_PROCESSOR_MAPPING,
   SHARED_CORE_PROCESSORS_BASELINE_UTILIZATION,
 } from './MachineTypes'
-import { ActiveProject, RECOMMENDATION_TYPES } from './RecommendationsTypes'
+import {
+  ActiveProject,
+  RECOMMENDATION_TYPES,
+  ResourceDetails,
+  UnknownRecommendationDetails,
+} from './RecommendationsTypes'
 import ServiceWrapper from './ServiceWrapper'
 import { GCP_REGIONS } from './GCPRegions'
+import { CostAndCo2eTotals } from '@cloud-carbon-footprint/core'
 
 export default class Recommendations implements ICloudRecommendationsService {
   readonly RECOMMENDER_IDS: string[] = [
@@ -51,6 +58,7 @@ export default class Recommendations implements ICloudRecommendationsService {
   ]
   private readonly primaryImpactPerformance = 'PERFORMANCE'
   private readonly recommendationsLogger: Logger
+  private readonly costAndCo2eTotals: CostAndCo2eTotals
   constructor(
     private readonly computeEstimator: ComputeEstimator,
     private readonly hddStorageEstimator: StorageEstimator,
@@ -58,12 +66,15 @@ export default class Recommendations implements ICloudRecommendationsService {
     private readonly googleServiceWrapper: ServiceWrapper,
   ) {
     this.recommendationsLogger = new Logger('GCPRecommendations')
+    this.costAndCo2eTotals = {
+      cost: 0,
+      co2e: 0,
+    }
   }
 
   async getRecommendations(): Promise<RecommendationResult[]> {
     const activeProjectsAndZones =
       await this.googleServiceWrapper.getActiveProjectsAndZones()
-
     return await this.getRecommendationsForProjects(activeProjectsAndZones)
   }
 
@@ -94,40 +105,117 @@ export default class Recommendations implements ICloudRecommendationsService {
     const nonEmptyRecommendations = recommendationsByIds
       .flat()
       .filter((recommendationId) => recommendationId.recommendations.length > 0)
+    const unknownRecommendations: UnknownRecommendationDetails[] = []
     if (nonEmptyRecommendations.length > 0) {
-      return Promise.all(
+      const recommendationsResult: RecommendationResult[] = []
+      await Promise.all(
         R.flatten(
           nonEmptyRecommendations.map(({ zone, recommendations }) =>
             recommendations.map(async (rec: IRecommendation) => {
-              const [estimatedCO2eSavings, resourceId] =
+              const [estimatedCO2eSavings, resourceDetails] =
                 await this.getEstimatedCO2eSavings(project.id, zone, rec)
-              return {
-                cloudProvider: 'GCP',
-                accountId: project.id,
-                accountName: project.name,
-                region: this.parseRegionFromZone(zone),
-                recommendationType: rec.recommenderSubtype,
-                recommendationDetail: rec.description,
-                costSavings: this.getEstimatedCostSavings(rec),
-                co2eSavings: estimatedCO2eSavings.co2e,
-                kilowattHourSavings: estimatedCO2eSavings.kilowattHours,
-                resourceId,
+
+              const cost = this.getEstimatedCostSavings(rec)
+              if (
+                rec.recommenderSubtype === RECOMMENDATION_TYPES.DELETE_ADDRESS
+              ) {
+                unknownRecommendations.push({
+                  rec,
+                  zone,
+                  cost,
+                  resourceDetails,
+                })
+                return
+              } else {
+                this.accumulateCostAndCo2e(cost, estimatedCO2eSavings.co2e)
+                recommendationsResult.push({
+                  cloudProvider: 'GCP',
+                  accountId: project.id,
+                  accountName: project.name,
+                  region: this.parseRegionFromZone(zone),
+                  recommendationType: rec.recommenderSubtype,
+                  recommendationDetail: rec.description,
+                  costSavings: cost,
+                  co2eSavings: estimatedCO2eSavings.co2e,
+                  kilowattHourSavings: estimatedCO2eSavings.kilowattHours,
+                  resourceId: resourceDetails.resourceId,
+                  instanceName: resourceDetails.resourceName,
+                })
               }
             }),
           ),
         ),
       )
+
+      unknownRecommendations.map(({ rec, zone, cost, resourceDetails }) => {
+        const { co2e, kilowattHours } = this.getCo2eEstimationsForUnknowns(
+          zone,
+          cost,
+        )
+
+        recommendationsResult.push({
+          cloudProvider: 'GCP',
+          accountId: project.id,
+          accountName: project.name,
+          region: this.parseRegionFromZone(zone),
+          recommendationType: rec.recommenderSubtype,
+          recommendationDetail: rec.description,
+          costSavings: cost,
+          co2eSavings: co2e,
+          kilowattHourSavings: kilowattHours,
+          resourceId: resourceDetails.resourceId,
+          instanceName: resourceDetails.resourceName,
+        })
+      })
+      return recommendationsResult
     }
     return []
+  }
+
+  private getCo2eEstimationsForUnknowns(
+    zone: string,
+    cost: number,
+  ): {
+    [key: string]: number
+  } {
+    if (this.costAndCo2eTotals.cost === 0)
+      return {
+        co2e: 0,
+        kilowattHours: 0,
+      }
+    const co2ePerCost =
+      this.costAndCo2eTotals.co2e / this.costAndCo2eTotals.cost
+    const co2e = cost * co2ePerCost
+    const kilowattHours =
+      co2e /
+      GCP_EMISSIONS_FACTORS_METRIC_TON_PER_KWH[this.parseRegionFromZone(zone)]
+    return { co2e, kilowattHours }
+  }
+
+  private accumulateCostAndCo2e(cost: number, co2e: number) {
+    this.costAndCo2eTotals.cost += cost
+    this.costAndCo2eTotals.co2e += co2e
   }
 
   private async getEstimatedCO2eSavings(
     projectId: string,
     zone: string,
     recommendation: IRecommendation,
-  ): Promise<[FootprintEstimate, string]> {
+  ): Promise<[FootprintEstimate, ResourceDetails]> {
+    let footprintEstimate: FootprintEstimate = {
+      timestamp: undefined,
+      kilowattHours: 0,
+      co2e: 0,
+    }
+    let resourceDetails: ResourceDetails = {
+      resourceId: '',
+      resourceName:
+        recommendation.content.operationGroups[0].operations[0].resource
+          .split('/')
+          .pop(),
+    }
+    let diskDetails: Schema$Disk
     try {
-      let footprintEstimate: FootprintEstimate
       switch (recommendation.recommenderSubtype) {
         case RECOMMENDATION_TYPES.STOP_VM:
           const instanceDetails = await this.getInstanceDetails(
@@ -137,17 +225,19 @@ export default class Recommendations implements ICloudRecommendationsService {
           )
           const computeCO2eEstimatedSavings =
             await this.getCO2EstimatedSavingsForInstance(
-              instanceDetails,
               projectId,
+              instanceDetails,
               zone,
             )
+
           const storageFootprintEstimates = await Promise.all(
             instanceDetails.disks.map(async (disk) => {
-              return await this.getCO2EstimatesSavingsForDisk(
-                disk.source.split('disks/').pop(),
+              diskDetails = await this.googleServiceWrapper.getDiskDetails(
                 projectId,
+                disk.source.split('disks/').pop(),
                 zone,
               )
+              return await this.getCO2EstimatesSavingsForDisk(diskDetails, zone)
             }),
           )
           const storageKilowattHoursSavings = R.sum(
@@ -163,7 +253,11 @@ export default class Recommendations implements ICloudRecommendationsService {
               storageKilowattHoursSavings,
             timestamp: undefined,
           }
-          return [footprintEstimate, instanceDetails.id]
+          resourceDetails = {
+            resourceId: instanceDetails.id,
+            resourceName: instanceDetails.name,
+          }
+          return [footprintEstimate, resourceDetails]
         case RECOMMENDATION_TYPES.CHANGE_MACHINE_TYPE:
           const currentMachineType = recommendation.description
             .replace('.', '')
@@ -191,15 +285,35 @@ export default class Recommendations implements ICloudRecommendationsService {
               currentComputeCO2e.kilowattHours - newComputeCO2e.kilowattHours,
             timestamp: undefined,
           }
-          return [footprintEstimate, '']
-        case RECOMMENDATION_TYPES.SNAPSHOT_AND_DELETE_DISK:
-        case RECOMMENDATION_TYPES.DELETE_DISK:
-          footprintEstimate = await this.getCO2EstimatesSavingsForDisk(
-            recommendation.description.split("'")[1],
+
+          const currentMachineInstanceDetails = await this.getInstanceDetails(
+            recommendation,
             projectId,
             zone,
           )
-          return [footprintEstimate, '']
+          resourceDetails = {
+            resourceId: currentMachineInstanceDetails.id,
+            resourceName: currentMachineInstanceDetails.name,
+          }
+          return [footprintEstimate, resourceDetails]
+        case RECOMMENDATION_TYPES.SNAPSHOT_AND_DELETE_DISK:
+        case RECOMMENDATION_TYPES.DELETE_DISK:
+          diskDetails = await this.googleServiceWrapper.getDiskDetails(
+            projectId,
+            recommendation.description.split("'")[1],
+            zone,
+          )
+
+          footprintEstimate = await this.getCO2EstimatesSavingsForDisk(
+            diskDetails,
+            zone,
+          )
+
+          resourceDetails = {
+            resourceId: diskDetails.id,
+            resourceName: diskDetails.name,
+          }
+          return [footprintEstimate, resourceDetails]
         case RECOMMENDATION_TYPES.DELETE_IMAGE:
           const imageId = recommendation.description.split("'")[1]
           const imageDetails = await this.googleServiceWrapper.getImageDetails(
@@ -213,18 +327,36 @@ export default class Recommendations implements ICloudRecommendationsService {
             imageArchiveSizeGigabytes,
             this.parseRegionFromZone(zone),
           )
-          return [footprintEstimate, '']
+          resourceDetails = {
+            resourceId: imageDetails.id,
+            resourceName: imageDetails.name,
+          }
+          return [footprintEstimate, resourceDetails]
+        case RECOMMENDATION_TYPES.DELETE_ADDRESS:
+          const addressId = recommendation.description.split("'")[1]
+          const addressDetails =
+            await this.googleServiceWrapper.getAddressDetails(
+              projectId,
+              addressId,
+              zone,
+            )
+          resourceDetails = {
+            resourceId: addressDetails.id,
+            resourceName: addressDetails.name,
+          }
+
+          return [footprintEstimate, resourceDetails]
         default:
           this.recommendationsLogger.warn(
             `Unknown/unsupported Recommender Type: ${recommendation.recommenderSubtype}`,
           )
-          return [{ timestamp: undefined, kilowattHours: 0, co2e: 0 }, '']
+          return [footprintEstimate, resourceDetails]
       }
     } catch (err) {
       this.recommendationsLogger.warn(
-        `Unable to Estimate C02e Savings for Recommendations: ${recommendation.name}. Error: ${err}. Returning 0`,
+        `There was an error in estimating CO2e Savings and getting Resource ID/Name: ${recommendation.name}. Error: ${err.message}.`,
       )
-      return [{ timestamp: undefined, kilowattHours: 0, co2e: 0 }, '']
+      return [footprintEstimate, resourceDetails]
     }
   }
 
@@ -236,8 +368,8 @@ export default class Recommendations implements ICloudRecommendationsService {
     const currentMachineTypeDetails =
       await this.googleServiceWrapper.getMachineTypeDetails(
         projectId,
-        zone,
         currentMachineType,
+        zone,
       )
     const currentMachineTypeVCPus = Object.keys(
       SHARED_CORE_PROCESSORS_BASELINE_UTILIZATION,
@@ -253,15 +385,9 @@ export default class Recommendations implements ICloudRecommendationsService {
   }
 
   private async getCO2EstimatesSavingsForDisk(
-    diskId: string,
-    projectId: string,
+    diskDetails: Schema$Disk,
     zone: string,
   ) {
-    const diskDetails = await this.googleServiceWrapper.getDiskDetails(
-      projectId,
-      zone,
-      diskId,
-    )
     const storageType = this.googleServiceWrapper.getStorageTypeFromDiskName(
       diskDetails.type.split('/').pop(),
     )
@@ -273,16 +399,16 @@ export default class Recommendations implements ICloudRecommendationsService {
   }
 
   private async getCO2EstimatedSavingsForInstance(
-    instanceDetails: Schema$Instance,
     projectId: string,
+    instanceDetails: Schema$Instance,
     zone: string,
   ) {
     const machineType = instanceDetails.machineType.split('/').pop()
     const machineTypeDetails =
       await this.googleServiceWrapper.getMachineTypeDetails(
         projectId,
-        zone,
         machineType,
+        zone,
       )
 
     return this.estimateComputeCO2eSavings(
@@ -297,11 +423,15 @@ export default class Recommendations implements ICloudRecommendationsService {
     projectId: string,
     zone: string,
   ) {
-    const instanceId = recommendation.description.split("'")[1]
+    //recommendation.description.split("'")[1]
+    const instanceId =
+      recommendation.content.operationGroups[0].operations[0].resource
+        .split('/')
+        .pop()
     return await this.googleServiceWrapper.getInstanceDetails(
       projectId,
-      zone,
       instanceId,
+      zone,
     )
   }
 
@@ -314,7 +444,7 @@ export default class Recommendations implements ICloudRecommendationsService {
 
     const computeUsage = {
       cpuUtilizationAverage: GCP_CLOUD_CONSTANTS.AVG_CPU_UTILIZATION_2020,
-      numberOfvCpus: vCpuHours,
+      vCpuHours: vCpuHours,
       usesAverageCPUConstant: true,
     }
 

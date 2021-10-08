@@ -2,23 +2,25 @@
  * © 2021 Thoughtworks, Inc.
  */
 import R from 'ramda'
-import { Project, Resource } from '@google-cloud/resource-manager'
-import { GoogleAuthClient, Logger, wait } from '@cloud-carbon-footprint/common'
-import {
-  ActiveProject,
-  RecommenderRecommendations,
-} from './RecommendationsTypes'
+import { ProjectsClient, protos } from '@google-cloud/resource-manager'
+import { APIEndpoint } from 'googleapis-common'
+import { RecommenderClient } from '@google-cloud/recommender'
 import { compute_v1 } from 'googleapis'
+import Project = protos.google.cloud.resourcemanager.v3.IProject
 import Schema$Instance = compute_v1.Schema$Instance
 import Schema$MachineType = compute_v1.Schema$MachineType
 import Schema$Disk = compute_v1.Schema$Disk
 import Schema$Image = compute_v1.Schema$Image
-import { APIEndpoint } from 'googleapis-common'
-import { RecommenderClient } from '@google-cloud/recommender'
-import { InstanceData } from '../__tests__/fixtures/googleapis.fixtures'
+import Schema$Address = compute_v1.Schema$Address
 import Schema$InstancesScopedList = compute_v1.Schema$InstancesScopedList
 import Schema$DisksScopedList = compute_v1.Schema$DisksScopedList
 import Schema$AddressesScopedList = compute_v1.Schema$AddressesScopedList
+import { GoogleAuthClient, Logger, wait } from '@cloud-carbon-footprint/common'
+import { InstanceData } from '../__tests__/fixtures/googleapis.fixtures'
+import {
+  ActiveProject,
+  RecommenderRecommendations,
+} from './RecommendationsTypes'
 
 const RETRY_AFTER = 10
 
@@ -35,7 +37,7 @@ export default class ServiceWrapper {
   private readonly serviceWrapperLogger: Logger
   private readonly noResultsOnPageMessage = 'NO_RESULTS_ON_PAGE'
   constructor(
-    private readonly resourceManagerClient: Resource,
+    private readonly googleProjectsClient: ProjectsClient,
     private readonly googleAuthClient: GoogleAuthClient,
     private readonly googleComputeClient: APIEndpoint,
     private readonly googleRecommenderClient: RecommenderClient,
@@ -46,7 +48,7 @@ export default class ServiceWrapper {
   async getActiveProjectsAndZones(): Promise<ActiveProject[]> {
     const projects = await this.getProjects()
     const activeProjects = projects.filter(
-      (project) => project.metadata.lifecycleState === 'ACTIVE',
+      (project) => project.state === 'ACTIVE',
     )
     const activeProjectsAndZones = []
     const projectChunks = R.splitEvery(150, activeProjects)
@@ -62,7 +64,7 @@ export default class ServiceWrapper {
   }
 
   private async getProjects(): Promise<Project[]> {
-    const [projects] = await this.resourceManagerClient.getProjects()
+    const [projects] = await this.googleProjectsClient.searchProjects()
     return projects
   }
 
@@ -71,7 +73,7 @@ export default class ServiceWrapper {
   ): Promise<ActiveProject | []> {
     try {
       const computeEngineRequest = {
-        project: project.id,
+        project: project.projectId,
         auth: this.googleAuthClient,
       }
       const instancesResult =
@@ -91,8 +93,8 @@ export default class ServiceWrapper {
       const addressesZones = this.extractZones(addressesResult.data.items)
 
       return {
-        id: project.id,
-        name: project.metadata.name,
+        id: project.projectId,
+        name: project.displayName,
         zones: R.uniq([
           ...instanceZones,
           ...addressesZones,
@@ -102,7 +104,7 @@ export default class ServiceWrapper {
       }
     } catch (e) {
       this.serviceWrapperLogger.warn(
-        `Failed to get active zones for project: ${project.id}. Error: ${e.message} `,
+        `Failed to get active zones for project: ${project.projectId}. Error: ${e.message} `,
       )
       return []
     }
@@ -157,8 +159,8 @@ export default class ServiceWrapper {
 
   async getInstanceDetails(
     projectId: string,
-    zone: string,
     instanceId: string,
+    zone: string,
   ): Promise<Schema$Instance> {
     const computeEngineRequest = {
       project: projectId,
@@ -174,8 +176,8 @@ export default class ServiceWrapper {
 
   async getMachineTypeDetails(
     projectId: string,
-    zone: string,
     machineType: string,
+    zone: string,
   ): Promise<Schema$MachineType> {
     const machineTypeRequest = {
       project: projectId,
@@ -195,8 +197,8 @@ export default class ServiceWrapper {
 
   async getDiskDetails(
     projectId: string,
-    zone: string,
     diskId: string,
+    zone: string,
   ): Promise<Schema$Disk> {
     const diskDetailsRequest = {
       project: projectId,
@@ -219,6 +221,23 @@ export default class ServiceWrapper {
     }
     const result = await this.googleComputeClient.images.get(
       ImageDetailsRequest,
+    )
+    return result.data
+  }
+
+  async getAddressDetails(
+    projectId: string,
+    addressId: string,
+    zone: string,
+  ): Promise<Schema$Address> {
+    const AddressDetailsRequest = {
+      project: projectId,
+      region: zone,
+      address: addressId,
+      auth: this.googleAuthClient,
+    }
+    const result = await this.googleComputeClient.addresses.get(
+      AddressDetailsRequest,
     )
     return result.data
   }

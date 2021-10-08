@@ -8,6 +8,13 @@ Issues will be closed if they have been inactive and the latest affected version
 
 _If an issue has been closed and you still feel it's relevant, feel free to ping a maintainer or add a comment!_
 
+## Picking Up an Issue
+We aim to be transparent in the work we are doing and have it posted on the [project board](https://github.com/cloud-carbon-footprint/cloud-carbon-footprint/projects/1).
+If a particular card interests you, feel free to comment on it to inform us you'd like to collaborate so we can begin conversations about it.
+Cards in the `Ready to Do` are properly prepared to be worked on.
+If a card has the marker `Good First Issue`, it is a great option to start with. Please indicate via a comment in the card that you are working on it, and we will assign it to you and move it into the `In Progress` column. When you have finished, please submit a PR and we will review and merge it.
+Cards without the `Good First Issue` marker are generally on our team's roadmap, but if you'd like to contribute that work, please comment on the ticket for alignment. Once you get to the point of working on the issue, please [submit a PR with your changes and link it to the issue.](#pull_requests)
+
 ### How to Contribute in Issues
 
 There are fundamentally three ways an individual can contribute:
@@ -42,7 +49,7 @@ Most issues are resolved by opening a pull request. The process for opening and 
 
 ---
 
-## Pull Requests 📥
+## <a id="pull_requests"></a>Pull Requests 📥
 
 Pull Requests are the way concrete changes are made to the code, documentation, dependencies, and tools contained in the `cloud-carbon-footprint/cloud-carbon-footprint` repository. Please [link your PR](https://docs.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue) to an issue so we can more easily track the work being done
 
@@ -207,12 +214,6 @@ pushed into production, click on "Review deployments", select production, then a
 
 - To update a package to the patch or minor version, use the command `yarn update <package-name>`
 - To update a package to the latest major version, use `yarn upgrade --latest <package-name>`
-
----
-
-## Module Aliasing 🎛️️
-
-We've set up module aliasing within the server package, so modules within the sub directories can be accessed with the @ prefix, e.g. @application/Module/. We implemented this by configuring tsconfig.json, jest.config.js and installing the `tsconfig-paths` package.
 
 ---
 

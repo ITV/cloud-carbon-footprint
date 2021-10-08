@@ -3,11 +3,12 @@
  */
 
 import React, { ReactElement, useState } from 'react'
-import { Card, Box, Typography, Grid } from '@material-ui/core'
+import { Box, Typography } from '@material-ui/core'
 import SelectDropdown from 'common/SelectDropdown'
-import { ReactComponent as AWSMap } from './AWSMap.svg'
-import { ReactComponent as GCPMap } from './GCPMap.svg'
-import { ReactComponent as AzureMap } from './AzureMap.svg'
+import DashboardCard from 'layout/DashboardCard'
+import AWSMap from './AWSMap.png'
+import GCPMap from './GCPMap.png'
+import AzureMap from './AzureMap.png'
 import useStyles from './carbonIntensityStyles'
 
 type CloudProvider = 'AWS' | 'GCP' | 'Azure'
@@ -21,9 +22,9 @@ const CarbonIntensityMap = (): ReactElement => {
   const classes = useStyles()
 
   const intensityMaps: IntensityMaps = {
-    AWS: <AWSMap className={classes.map} data-testid="awsIntensityMap" />,
-    GCP: <GCPMap className={classes.map} data-testid="gcpIntensityMap" />,
-    Azure: <AzureMap className={classes.map} data-testid="azureIntensityMap" />,
+    AWS: AWSMap,
+    GCP: GCPMap,
+    Azure: AzureMap,
   }
 
   const handleChange = (event: React.ChangeEvent<{ value: string }>) => {
@@ -31,24 +32,29 @@ const CarbonIntensityMap = (): ReactElement => {
   }
 
   return (
-    <Grid item xs={12}>
-      <Card className={classes.root}>
-        <Box padding={3}>
-          <Box className={classes.topContainer}>
-            <Typography className={classes.title}>
-              Carbon Intensity Map
-            </Typography>
-            <SelectDropdown
-              id="map"
-              value={cloudProvider}
-              dropdownOptions={Object.keys(intensityMaps)}
-              handleChange={handleChange}
-            />
-          </Box>
-          <Box paddingX={3}>{intensityMaps[cloudProvider]}</Box>
+    <DashboardCard>
+      <>
+        <Box className={classes.topContainer}>
+          <Typography className={classes.title}>
+            Carbon Intensity Map
+          </Typography>
+          <SelectDropdown
+            id="map"
+            value={cloudProvider}
+            dropdownOptions={Object.keys(intensityMaps)}
+            handleChange={handleChange}
+          />
         </Box>
-      </Card>
-    </Grid>
+        <Box paddingX={3} textAlign="center">
+          <img
+            src={intensityMaps[cloudProvider]}
+            className={classes.map}
+            alt={`${cloudProvider} Map`}
+            data-testid={`${cloudProvider.toLowerCase()}IntensityMap`}
+          />
+        </Box>
+      </>
+    </DashboardCard>
   )
 }
 

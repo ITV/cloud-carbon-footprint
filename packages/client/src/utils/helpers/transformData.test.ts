@@ -8,13 +8,24 @@ import {
   mockDataWithUnknownsAWS,
   mockDataWithHigherPrecision,
   mockDataWithUnknownsGCP,
+  mockRecommendationData,
 } from '../data'
 import {
-  sumCO2,
+  sumEstimate,
   sumCO2ByServiceOrRegion,
   sumServiceTotals,
   useFilterDataFromEstimates,
+  useFilterDataFromRecommendations,
+  sumRecommendations,
+  calculatePercentChange,
+  formattedNumberWithCommas,
 } from './transformData'
+import {
+  mockDataWithSmallNumbers,
+  mockEmissionsAndRecommendations,
+  mockEmissionsAndRecommendationsWithUnknowns,
+} from '../data/mockData'
+import { UnknownTypes } from 'Types'
 
 const testAccountA = 'test-a'
 const testAccountB = 'test-b'
@@ -31,7 +42,14 @@ describe('transformData', () => {
 
   it('returns the sum of CO2 metric tons and gallons', () => {
     const expected = 30
-    expect(sumCO2(mockData)).toEqual(expected)
+    expect(sumEstimate(mockData, 'co2e')).toEqual(expected)
+  })
+
+  it('returns the sum of CO2 metric tons and gallons', () => {
+    const expected = 3.779
+    expect(sumRecommendations(mockRecommendationData, 'co2eSavings')).toEqual(
+      expected,
+    )
   })
 
   it('extract account names from estimates data', async () => {
@@ -49,6 +67,117 @@ describe('transformData', () => {
         { cloudProvider: 'aws', key: 'ec2', name: 'ec2' },
       ],
     }
+    expect(result.current).toEqual(expectedResult)
+  })
+
+  it('extracts account names, regions, and recommendation types from recommendation data', () => {
+    const { result } = renderHook(() =>
+      useFilterDataFromRecommendations(mockEmissionsAndRecommendations),
+    )
+
+    const expectedResult = {
+      accounts: [
+        { cloudProvider: 'aws', key: testAccountA, name: testAccountA },
+        { cloudProvider: 'gcp', key: testAccountB, name: testAccountB },
+        { cloudProvider: 'aws', key: testAccountB, name: testAccountB },
+      ],
+      regions: [
+        { cloudProvider: 'aws', key: 'us-east-1', name: 'us-east-1' },
+        { cloudProvider: 'gcp', key: 'us-east-1', name: 'us-east-1' },
+        {
+          cloudProvider: 'aws',
+          key: 'us-west-1',
+          name: 'us-west-1',
+        },
+        {
+          cloudProvider: 'aws',
+          key: 'us-west-2',
+          name: 'us-west-2',
+        },
+      ],
+      recommendationTypes: [
+        {
+          cloudProvider: 'aws',
+          key: 'Modify',
+          name: 'Modify',
+        },
+        {
+          cloudProvider: 'aws',
+          key: 'Terminate',
+          name: 'Terminate',
+        },
+      ],
+    }
+
+    expect(result.current).toEqual(expectedResult)
+  })
+
+  it('extracts account names, regions, and recommendation types from recommendation data when unknown', () => {
+    const { result } = renderHook(() =>
+      useFilterDataFromRecommendations(
+        mockEmissionsAndRecommendationsWithUnknowns,
+      ),
+    )
+
+    const expectedResult = {
+      accounts: [
+        {
+          cloudProvider: 'aws',
+          key: 'test-a',
+          name: 'test-a',
+        },
+        {
+          cloudProvider: 'aws',
+          key: UnknownTypes.UNKNOWN_ACCOUNT,
+          name: UnknownTypes.UNKNOWN_ACCOUNT,
+        },
+        {
+          cloudProvider: 'gcp',
+          key: 'test-b',
+          name: 'test-b',
+        },
+        {
+          cloudProvider: 'gcp',
+          key: 'Unknown Account',
+          name: 'Unknown Account',
+        },
+      ],
+      regions: [
+        {
+          cloudProvider: 'aws',
+          key: 'unknown',
+          name: 'unknown',
+        },
+        {
+          cloudProvider: 'aws',
+          key: 'us-east-1',
+          name: 'us-east-1',
+        },
+        {
+          cloudProvider: 'gcp',
+          key: 'unknown',
+          name: 'unknown',
+        },
+        {
+          cloudProvider: 'gcp',
+          key: 'us-east-1',
+          name: 'us-east-1',
+        },
+        {
+          cloudProvider: 'aws',
+          key: UnknownTypes.UNKNOWN_REGION,
+          name: UnknownTypes.UNKNOWN_REGION,
+        },
+      ],
+      recommendationTypes: [
+        {
+          cloudProvider: 'aws',
+          key: UnknownTypes.UNKNOWN_RECOMMENDATION_TYPE,
+          name: UnknownTypes.UNKNOWN_RECOMMENDATION_TYPE,
+        },
+      ],
+    }
+
     expect(result.current).toEqual(expectedResult)
   })
 
@@ -176,7 +305,7 @@ describe('sumServiceTotals', () => {
         { x: date2, y: 12.29 },
       ],
     }
-    it('returns the sum of co2e rounded to 3 decimal places', () => {
+    it('returns the sum of co2e rounded to 4 decimal places', () => {
       expect(sumServiceTotals(mockDataWithHigherPrecision).co2Series).toEqual(
         expectedTotals.co2e,
       )
@@ -191,6 +320,71 @@ describe('sumServiceTotals', () => {
     it('returns the sum of co2e rounded to the hundredths place', () => {
       expect(sumServiceTotals(mockDataWithHigherPrecision).costSeries).toEqual(
         expectedTotals.cost,
+      )
+    })
+  })
+  describe('rounding with small numbers', () => {
+    const expectedTotals = {
+      co2e: [
+        {
+          x: date1,
+          y: 0.000002469,
+          usesAverageCPUConstant: false,
+          kilowattHours: 0.0025,
+          cost: 0.0025,
+        },
+        {
+          x: date2,
+          y: 0.000002469,
+          usesAverageCPUConstant: true,
+          kilowattHours: 0.0025,
+          cost: 0.0025,
+        },
+      ],
+      kilowattHours: [
+        { x: date1, y: 0.0025 },
+        { x: date2, y: 0.0025 },
+      ],
+      cost: [
+        { x: date1, y: 0.0025 },
+        { x: date2, y: 0.0025 },
+      ],
+    }
+    it('returns the sum of co2e rounded to 4 digits showing', () => {
+      expect(sumServiceTotals(mockDataWithSmallNumbers).co2Series).toEqual(
+        expectedTotals.co2e,
+      )
+    })
+
+    it('returns the sum of co2e rounded to the hundredths place', () => {
+      expect(
+        sumServiceTotals(mockDataWithSmallNumbers).kilowattHoursSeries,
+      ).toEqual(expectedTotals.kilowattHours)
+    })
+
+    it('returns the sum of co2e rounded to the hundredths place', () => {
+      expect(sumServiceTotals(mockDataWithSmallNumbers).costSeries).toEqual(
+        expectedTotals.cost,
+      )
+    })
+
+    it('calculates the percent change between two numbers', () => {
+      expect(calculatePercentChange(100, 100)).toBe(0)
+      expect(calculatePercentChange(100, 110)).toBe(-10)
+      expect(calculatePercentChange(200, 275)).toBe(-37)
+      expect(calculatePercentChange(100, 50)).toBe(50)
+      expect(calculatePercentChange(200, 135)).toBe(33)
+    })
+
+    it('formats number to a string with commas and with a default decimal place of 2', () => {
+      expect(formattedNumberWithCommas(1000000)).toBe('1,000,000')
+      expect(formattedNumberWithCommas(100)).toBe('100')
+      expect(formattedNumberWithCommas(1000000.20567)).toBe('1,000,000.21')
+    })
+
+    it('formats number to a string with commas and with provided decimal place', () => {
+      expect(formattedNumberWithCommas(1000000.123456, 4)).toBe(
+        '1,000,000.1235',
       )
     })
   })

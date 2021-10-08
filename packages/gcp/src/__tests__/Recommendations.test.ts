@@ -4,7 +4,7 @@
 import { google } from 'googleapis'
 import { APIEndpoint } from 'googleapis-common'
 import { RecommenderClient } from '@google-cloud/recommender'
-import { Resource } from '@google-cloud/resource-manager'
+import { ProjectsClient } from '@google-cloud/resource-manager'
 import {
   RecommendationResult,
   GoogleAuthClient,
@@ -27,12 +27,13 @@ import {
   mockSnapshotAndDeleteDiskRecommendationsResults,
   mockStopVMRecommendationsResults,
   mockStopVMWithAdditionalImpactRecommendationsResults,
+  mockStopVmAndDeleteAddressRecommendations,
+  mockDeleteAddressRecommendationsEast,
 } from './fixtures/recommender.fixtures'
 import {
   mockedAddressesResultItems,
   mockedDisksResultItems,
   mockedInstanceGetItems,
-  mockedInstanceGetItemsNew,
   mockedInstanceGetItemsCurrent,
   mockedInstanceGetItemsWithBothDisks,
   mockedInstanceGetItemsWithHDDDisks,
@@ -45,6 +46,7 @@ import {
   mockedImageGetDetails,
   mockedInstanceGlobalResultItems,
   mockedInstanceRegionsResultItems,
+  mockedAddressGetDetails,
 } from './fixtures/googleapis.fixtures'
 
 jest.mock('moment', () => {
@@ -52,8 +54,8 @@ jest.mock('moment', () => {
 })
 
 jest.mock('@google-cloud/resource-manager', () => ({
-  Resource: jest.fn().mockImplementation(() => ({
-    getProjects: jest.fn().mockResolvedValue(mockedProjects),
+  ProjectsClient: jest.fn().mockImplementation(() => ({
+    searchProjects: jest.fn().mockResolvedValue(mockedProjects),
   })),
 }))
 
@@ -117,7 +119,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -138,6 +140,8 @@ describe('GCP Recommendations Service', () => {
           kilowattHourSavings: 58.152384000000005,
           co2eSavings: 0.0045358859520000004,
           costSavings: 15,
+          instanceName: 'test-resource-name',
+          resourceId: '12456789012',
         },
       ]
 
@@ -164,7 +168,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -185,6 +189,8 @@ describe('GCP Recommendations Service', () => {
           kilowattHourSavings: 58.41792000000001,
           co2eSavings: 0.024046546771602437,
           costSavings: 55,
+          instanceName: 'test-resource-name',
+          resourceId: '12456789012',
         },
       ]
 
@@ -209,7 +215,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -230,6 +236,8 @@ describe('GCP Recommendations Service', () => {
           kilowattHourSavings: 58.152384000000005,
           co2eSavings: 0.0045358859520000004,
           costSavings: 15,
+          instanceName: 'test-resource-name',
+          resourceId: '12456789012',
         },
       ]
 
@@ -249,7 +257,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -271,6 +279,7 @@ describe('GCP Recommendations Service', () => {
           co2eSavings: 0,
           costSavings: 15,
           resourceId: '',
+          instanceName: 'instance-name',
         },
       ]
 
@@ -293,7 +302,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -314,6 +323,8 @@ describe('GCP Recommendations Service', () => {
           kilowattHourSavings: 58.1626332,
           co2eSavings: 0.0045366853896,
           costSavings: 15,
+          instanceName: 'test-instance-name',
+          resourceId: '12456789012',
         },
       ]
 
@@ -342,7 +353,7 @@ describe('GCP Recommendations Service', () => {
         new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
         new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
         new ServiceWrapper(
-          new Resource(),
+          new ProjectsClient(),
           googleAuthClient,
           googleComputeClient,
           new RecommenderClient(),
@@ -363,6 +374,8 @@ describe('GCP Recommendations Service', () => {
           kilowattHourSavings: 58.18155480000001,
           co2eSavings: 0.004538161274400001,
           costSavings: 15,
+          instanceName: 'test-instance-name',
+          resourceId: '12456789012',
         },
       ]
 
@@ -376,11 +389,56 @@ describe('GCP Recommendations Service', () => {
       .mockResolvedValue([[]])
 
     setupSpyWithMultipleValues(
+      googleComputeClient.machineTypes,
+      'get',
+      mockedMachineTypesGetItemsCurrent,
+      mockedMachineTypesGetItemsNew,
+    )
+
+    setupSpy(
       googleComputeClient.instances,
       'get',
       mockedInstanceGetItemsCurrent,
-      mockedInstanceGetItemsNew,
     )
+
+    const recommendationsService = new Recommendations(
+      new ComputeEstimator(),
+      new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
+      new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
+      new ServiceWrapper(
+        new ProjectsClient(),
+        googleAuthClient,
+        googleComputeClient,
+        new RecommenderClient(),
+      ),
+    )
+
+    const recommendations = await recommendationsService.getRecommendations()
+
+    const expectedResult: RecommendationResult[] = [
+      {
+        cloudProvider: 'GCP',
+        accountId: 'project',
+        accountName: 'project-name',
+        region: 'us-west1',
+        recommendationType: 'CHANGE_MACHINE_TYPE',
+        recommendationDetail:
+          'Save cost by changing machine type from e2-medium to e2-small.',
+        kilowattHourSavings: 1.6960454999999999,
+        co2eSavings: 0.00013229154899999999,
+        costSavings: 20,
+        resourceId: '12456789012',
+        instanceName: 'test-resource-name',
+      },
+    ]
+
+    expect(recommendations).toEqual(expectedResult)
+  })
+
+  it('returns recommendations for change machine type with failed getInstance call', async () => {
+    mockListRecommendations
+      .mockResolvedValueOnce(mockChangeMachineTypeRecommendationsResults)
+      .mockResolvedValue([[]])
 
     setupSpyWithMultipleValues(
       googleComputeClient.machineTypes,
@@ -389,12 +447,15 @@ describe('GCP Recommendations Service', () => {
       mockedMachineTypesGetItemsNew,
     )
 
+    const targetFunctionSpy = jest.spyOn(googleComputeClient.instances, 'get')
+    ;(targetFunctionSpy as jest.Mock).mockRejectedValue('Error')
+
     const recommendationsService = new Recommendations(
       new ComputeEstimator(),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
@@ -416,6 +477,7 @@ describe('GCP Recommendations Service', () => {
         co2eSavings: 0.00013229154899999999,
         costSavings: 20,
         resourceId: '',
+        instanceName: 'instance-name',
       },
     ]
 
@@ -434,7 +496,7 @@ describe('GCP Recommendations Service', () => {
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
@@ -455,7 +517,8 @@ describe('GCP Recommendations Service', () => {
         kilowattHourSavings: 0.0189216,
         co2eSavings: 0.0000014758848,
         costSavings: 50,
-        resourceId: '',
+        resourceId: '12456789012',
+        instanceName: 'test-resource-name',
       },
     ]
 
@@ -474,7 +537,7 @@ describe('GCP Recommendations Service', () => {
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
@@ -495,7 +558,8 @@ describe('GCP Recommendations Service', () => {
         kilowattHourSavings: 0.010249200000000002,
         co2eSavings: 7.994376000000002e-7,
         costSavings: 50,
-        resourceId: '',
+        resourceId: '12456789012',
+        instanceName: 'test-resource-name',
       },
     ]
 
@@ -514,7 +578,7 @@ describe('GCP Recommendations Service', () => {
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
@@ -534,23 +598,27 @@ describe('GCP Recommendations Service', () => {
         kilowattHourSavings: 0.0002771527420842647,
         co2eSavings: 2.1617913882572647e-8,
         costSavings: 30,
-        resourceId: '',
+        resourceId: '12456789012',
+        instanceName: 'test-resource-name',
       },
     ]
 
     expect(recommendations).toEqual(expectedResult)
   })
+
   it('returns estimates of zero for recommendation type DELETE_ADDRESS', async () => {
     mockListRecommendations
       .mockResolvedValueOnce(mockDeleteAddressRecommendationsResults)
       .mockResolvedValue([[]])
+
+    setupSpy(googleComputeClient.addresses, 'get', mockedAddressGetDetails)
 
     const recommendationsService = new Recommendations(
       new ComputeEstimator(),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
@@ -571,7 +639,83 @@ describe('GCP Recommendations Service', () => {
         kilowattHourSavings: 0,
         co2eSavings: 0,
         costSavings: 40,
-        resourceId: '',
+        resourceId: '123456789012345',
+        instanceName: 'test-address',
+      },
+    ]
+
+    expect(recommendations).toEqual(expectedResult)
+  })
+
+  it('returns estimates for recommendation type DELETE_ADDRESS', async () => {
+    mockListRecommendations
+      .mockResolvedValueOnce(mockStopVmAndDeleteAddressRecommendations)
+      .mockResolvedValueOnce(mockDeleteAddressRecommendationsEast)
+      .mockResolvedValue([[]])
+
+    setupSpy(
+      googleComputeClient.machineTypes,
+      'get',
+      mockedMachineTypesGetItems,
+    )
+    setupSpy(googleComputeClient.instances, 'get', mockedInstanceGetItems)
+    setupSpy(googleComputeClient.addresses, 'get', mockedAddressGetDetails)
+
+    const recommendationsService = new Recommendations(
+      new ComputeEstimator(),
+      new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
+      new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
+      new ServiceWrapper(
+        new ProjectsClient(),
+        googleAuthClient,
+        googleComputeClient,
+        new RecommenderClient(),
+      ),
+    )
+
+    const recommendations = await recommendationsService.getRecommendations()
+
+    const expectedResult: RecommendationResult[] = [
+      {
+        cloudProvider: 'GCP',
+        accountId: 'project',
+        accountName: 'project-name',
+        region: 'us-west1',
+        recommendationType: 'STOP_VM',
+        recommendationDetail: "Save cost by stopping Idle VM 'test-instance'.",
+        kilowattHourSavings: 58.152384000000005,
+        co2eSavings: 0.0045358859520000004,
+        costSavings: 15,
+        instanceName: 'test-resource-name',
+        resourceId: '12456789012',
+      },
+      {
+        cloudProvider: 'GCP',
+        accountId: 'project',
+        accountName: 'project-name',
+        region: 'us-west1',
+        recommendationType: 'DELETE_ADDRESS',
+        recommendationDetail:
+          "Save cost by deleting idle address 'test-address'.",
+        kilowattHourSavings: 155.07302400000003,
+        co2eSavings: 0.012095695872000002,
+        costSavings: 40,
+        resourceId: '123456789012345',
+        instanceName: 'test-address',
+      },
+      {
+        cloudProvider: 'GCP',
+        accountId: 'project',
+        accountName: 'project-name',
+        region: 'us-east1',
+        recommendationType: 'DELETE_ADDRESS',
+        recommendationDetail:
+          "Save cost by deleting idle address 'test-address'.",
+        kilowattHourSavings: 25.199366400000002,
+        co2eSavings: 0.012095695872000002,
+        costSavings: 40,
+        resourceId: '123456789012345',
+        instanceName: 'test-address',
       },
     ]
 
@@ -588,7 +732,7 @@ describe('GCP Recommendations Service', () => {
       new StorageEstimator(GCP_CLOUD_CONSTANTS.HDDCOEFFICIENT),
       new StorageEstimator(GCP_CLOUD_CONSTANTS.SSDCOEFFICIENT),
       new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),

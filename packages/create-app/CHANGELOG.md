@@ -1,5 +1,25 @@
 # @cloud-carbon-footprint/create-app
 
+## 1.0.1
+
+### Patch Changes
+
+- 8a380bd3: Adds to the recommendations page and implements filtering and sorting
+  To update create-app templates, refer to [this link](https://github.com/cloud-carbon-footprint/cloud-carbon-footprint/commit/1640acda32e22a9777ff5360a278d2dfc6971889)
+
+## 1.0.0
+
+### Major Changes
+
+- 52237bc6: Adds additional dashboard for viewing cloud provider recommendations including refactoring filters for reusability
+
+  For updating the create-app templates, please refer to the following [commit](https://github.com/cloud-carbon-footprint/cloud-carbon-footprint/commit/d1f9a94ea88e6f9210a781e16df18b9f64a0b03d).
+
+### Patch Changes
+
+- c973b85f: Fixes rendering of client when very small numbers return for co2e/energy/cost
+- 04cdf8f9: Downgrades ora packages to fix create-app build
+
 ## 0.5.1
 
 ### Patch Changes

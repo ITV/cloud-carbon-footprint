@@ -2,13 +2,15 @@
  * © 2021 Thoughtworks, Inc.
  */
 
-import { Resource } from '@google-cloud/resource-manager'
+import { ProjectsClient } from '@google-cloud/resource-manager'
 import { compute_v1, google } from 'googleapis'
+import { GoogleAuth } from 'google-auth-library'
 import { RecommenderClient } from '@google-cloud/recommender'
-import { GoogleAuthClient } from '@cloud-carbon-footprint/common'
+import { GoogleAuthClient, wait } from '@cloud-carbon-footprint/common'
 import {
   InstanceData,
   mockedAddressesResultItems,
+  mockedAddressGetDetails,
   mockedDisksGetSSDDetails,
   mockedDisksResultItems,
   mockedImageGetDetails,
@@ -28,8 +30,6 @@ import {
 import { mockStopVMRecommendationsResults } from './fixtures/recommender.fixtures'
 import { mockedProjects } from './fixtures/resourceManager.fixtures'
 import { setupSpy, setupSpyWithRejectedValue } from './helpers'
-import { GoogleAuth } from 'google-auth-library'
-import { wait } from '@cloud-carbon-footprint/common'
 
 jest.mock('@cloud-carbon-footprint/common', () => ({
   ...(jest.requireActual('@cloud-carbon-footprint/common') as Record<
@@ -40,8 +40,8 @@ jest.mock('@cloud-carbon-footprint/common', () => ({
 }))
 
 jest.mock('@google-cloud/resource-manager', () => ({
-  Resource: jest.fn().mockImplementation(() => ({
-    getProjects: jest.fn().mockResolvedValue(mockedProjects),
+  ProjectsClient: jest.fn().mockImplementation(() => ({
+    searchProjects: jest.fn().mockResolvedValue(mockedProjects),
   })),
 }))
 
@@ -69,7 +69,7 @@ describe('GCP Service Wrapper', () => {
     const googleComputeClient = google.compute('v1')
 
     serviceWrapper = new ServiceWrapper(
-      new Resource(),
+      new ProjectsClient(),
       googleAuthClient,
       googleComputeClient,
       new RecommenderClient(),
@@ -98,6 +98,7 @@ describe('GCP Service Wrapper', () => {
     )
     setupSpy(googleComputeClient.instances, 'get', mockedInstanceGetItems)
     setupSpy(googleComputeClient.images, 'get', mockedImageGetDetails)
+    setupSpy(googleComputeClient.addresses, 'get', mockedAddressGetDetails)
   })
 
   it('gets active projects', async () => {
@@ -108,7 +109,7 @@ describe('GCP Service Wrapper', () => {
       {
         id: 'project',
         name: 'project-name',
-        zones: ['us-west1-a', 'global'],
+        zones: ['us-west1-a', 'us-east1-a', 'global'],
       },
     ]
 
@@ -149,8 +150,8 @@ describe('GCP Service Wrapper', () => {
     const instanceDetails: Schema$Instance =
       await serviceWrapper.getInstanceDetails(
         'project',
-        'us-west1-b',
         'test-instance',
+        'us-west1-b',
       )
 
     const expectedResult: InstanceData = {
@@ -158,6 +159,8 @@ describe('GCP Service Wrapper', () => {
         machineType:
           'https://www.googleapis.com/compute/v1/projects/test-project/zones/us-west1-b/machineTypes/n2-standard-32',
         disks: [],
+        id: '12456789012',
+        name: 'test-resource-name',
       },
     }
 
@@ -168,8 +171,8 @@ describe('GCP Service Wrapper', () => {
     const machineTypeDetails: Schema$MachineType =
       await serviceWrapper.getMachineTypeDetails(
         'project',
-        'us-west1-b',
         'test-instance',
+        'us-west1-b',
       )
 
     const expectedResult = {
@@ -190,13 +193,15 @@ describe('GCP Service Wrapper', () => {
   it('gets disks details', async () => {
     const diskDetails = await serviceWrapper.getDiskDetails(
       'project',
-      'us-west1-b',
       'test-disk',
+      'us-west1-b',
     )
 
     const expectedResult = {
       sizeGb: '20',
       type: 'https://www.googleapis.com/compute/v1/projects/techops-events/zones/us-central1-b/diskTypes/pd-standard-ssd',
+      id: '12456789012',
+      name: 'test-resource-name',
     }
 
     expect(diskDetails).toEqual(expectedResult)
@@ -210,9 +215,27 @@ describe('GCP Service Wrapper', () => {
 
     const expectedResult = {
       archiveSizeBytes: '580709696',
+      id: '12456789012',
+      name: 'test-resource-name',
     }
 
     expect(imageDetails).toEqual(expectedResult)
+  })
+
+  it('gets address details', async () => {
+    const addressDetails = await serviceWrapper.getAddressDetails(
+      'project',
+      'test-address',
+      'us-west1',
+    )
+
+    const expectedResult = {
+      id: '123456789012345',
+      name: 'test-address',
+      address: '38.141.210.105',
+    }
+
+    expect(addressDetails).toEqual(expectedResult)
   })
 
   describe('error handling', () => {
@@ -231,7 +254,7 @@ describe('GCP Service Wrapper', () => {
       const googleAuthClient: GoogleAuthClient = await auth.getClient()
 
       serviceWrapper = new ServiceWrapper(
-        new Resource(),
+        new ProjectsClient(),
         googleAuthClient,
         googleComputeClient,
         new RecommenderClient(),
